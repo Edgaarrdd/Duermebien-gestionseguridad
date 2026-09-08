@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Usuarios e Identidades (RBAC) | SOC Portal{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                <i class="fa-solid fa-users-gear text-indigo-400"></i>
+                <span>Gestión de Identidades y Control de Acceso (RBAC)</span>
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">
+                Alineado con el principio de menor privilegio (ISO/IEC 27001 Control A.9.2 y NIST AC-2/AC-6)
+            </p>
+        </div>
+        <div class="px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-xs text-indigo-300 font-mono">
+            <i class="fa-solid fa-user-shield mr-1"></i> Solo Rol Administrador
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Formulario para Crear Usuario -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl h-fit">
+            <h2 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-user-plus text-emerald-400"></i>
+                <span>Aprovisionar Nuevo Usuario</span>
+            </h2>
+
+            <form method="POST" action="{{ url_for('routes.admin_users') }}" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nombre de Usuario (Username)</label>
+                    <input type="text" name="username" required
+                        class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nombre Completo</label>
+                    <input type="text" name="full_name" required
+                        class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Contraseña Inicial</label>
+                    <input type="password" name="password" required
+                        class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+                    <p class="text-[10px] text-slate-500 mt-1">Se aplicará algoritmo PBKDF2 / SHA-256 salted</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Rol Asignado (RBAC)</label>
+                    <select name="role"
+                        class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
+                        <option value="operador" selected>Operador (Acceso limitado a reporte y visualización)</option>
+                        <option value="admin">Administrador (Control total, auditoría y gestión IAM)</option>
+                    </select>
+                </div>
+
+                <button type="submit"
+                    class="w-full mt-2 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/20 transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Crear Usuario
+                </button>
+            </form>
+        </div>
+
+        <!-- Lista de Usuarios Existentes -->
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="p-5 border-b border-slate-800">
+                <h2 class="text-base font-bold text-white">Directorio de Cuentas del Sistema</h2>
+                <p class="text-xs text-slate-400">Usuarios con credenciales de acceso activas en el entorno</p>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-950/70 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+                        <tr>
+                            <th class="py-3 px-4">ID</th>
+                            <th class="py-3 px-4">Usuario</th>
+                            <th class="py-3 px-4">Nombre Completo</th>
+                            <th class="py-3 px-4">Rol Asignado</th>
+                            <th class="py-3 px-4">Estado</th>
+                            <th class="py-3 px-4">Fecha Creación</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        {% for u in users %}
+                        <tr class="hover:bg-slate-800/50 transition">
+                            <td class="py-3 px-4 font-mono text-xs text-slate-400">#{{ u['id'] }}</td>
+                            <td class="py-3 px-4 font-semibold text-white font-mono text-xs">{{ u['username'] }}</td>
+                            <td class="py-3 px-4 text-xs">{{ u['full_name'] }}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded text-xs font-bold uppercase {{ 'bg-red-500/20 text-red-300 border border-red-500/30' if u['role'] == 'admin' else 'bg-blue-500/20 text-blue-300 border border-blue-500/30' }}">
+                                    {{ u['role'] }}
+                                </span>
+                            </td>
+                            <td class="py-3 px-4">
+                                {% if u['is_active'] %}
+                                    <span class="text-emerald-400 text-xs font-semibold flex items-center gap-1">
+                                        <span class="h-2 w-2 rounded-full bg-emerald-400"></span> Activo
+                                    </span>
+                                {% else %}
+                                    <span class="text-rose-400 text-xs font-semibold flex items-center gap-1">
+                                        <span class="h-2 w-2 rounded-full bg-rose-400"></span> Inactivo
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 px-4 text-xs text-slate-400 font-mono">{{ u['created_at'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

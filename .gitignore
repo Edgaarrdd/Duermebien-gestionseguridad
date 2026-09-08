@@ -1,0 +1,50 @@
+# ==============================================================================
+# .gitignore - Seguridad y Prevención de Fuga de Credenciales (ISO 27001 A.8.12)
+# ==============================================================================
+
+# Llaves criptográficas y certificados privados (CRÍTICO)
+*.pem
+*.key
+*.cer
+*.crt
+*.pfx
+*.p12
+id_rsa
+id_rsa.pub
+
+# Variables de entorno y secretos en texto plano
+.env
+.env.local
+.env.*.local
+
+# Bases de datos locales y archivos de almacenamiento
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.db
+*.sqlite
+*.sqlite3
+
+# Archivos y carpetas de respaldo generados
+backups/
+*.tar.gz
+*.sha256
+
+# Bitácoras y logs de auditoría locales
+logs/
+*.log
+
+# Entornos virtuales y dependencias de Python
+venv/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Archivos del sistema y de editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

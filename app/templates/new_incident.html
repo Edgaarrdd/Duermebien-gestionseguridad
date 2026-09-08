@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Reportar Incidente de Seguridad | SOC Portal{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl p-8 space-y-6">
+        
+        <div class="border-b border-slate-800 pb-4">
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+                <span>Reportar Nuevo Incidente de Seguridad</span>
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">
+                Alineado con el protocolo de gestión de incidentes (ISO/IEC 27035 / NIST SP 800-61)
+            </p>
+        </div>
+
+        <form method="POST" action="{{ url_for('routes.new_incident') }}" class="space-y-5">
+            <div>
+                <label for="title" class="block text-xs font-semibold uppercase text-slate-400 mb-1">Título del Incidente</label>
+                <input type="text" id="title" name="title" required
+                    class="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                    placeholder="Ej. Detección de tráfico anómalo en puerto 443">
+            </div>
+
+            <div>
+                <label for="severity" class="block text-xs font-semibold uppercase text-slate-400 mb-1">Nivel de Severidad</label>
+                <select id="severity" name="severity"
+                    class="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
+                    <option value="BAJO">BAJO - Evento informativo sin impacto operacional</option>
+                    <option value="MEDIO" selected>MEDIO - Anomalía detectada con potencial impacto menor</option>
+                    <option value="ALTO">ALTO - Intento de intrusión o degradación de servicio</option>
+                    <option value="CRITICO">CRÍTICO - Compromiso activo de confidencialidad o disponibilidad</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="description" class="block text-xs font-semibold uppercase text-slate-400 mb-1">Descripción y Hallazgos Técnicos</label>
+                <textarea id="description" name="description" rows="5" required
+                    class="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                    placeholder="Detalles del evento: IPs de origen, puertos afectados, anomalías observadas y acciones inmediatas tomadas..."></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <a href="{{ url_for('routes.dashboard') }}" class="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+                    Cancelar
+                </a>
+                <button type="submit"
+                    class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition">
+                    <i class="fa-solid fa-paper-plane mr-1.5"></i> Registrar Incidente
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+{% endblock %}

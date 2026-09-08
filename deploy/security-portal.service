@@ -1,0 +1,31 @@
+[Unit]
+Description=Portal de Seguridad de la Informacion - Servicio Web Seguro
+After=network.target
+
+[Service]
+# Principio de menor privilegio: ejecución bajo usuario de servicio no-root
+User=appuser
+Group=appuser
+WorkingDirectory=/opt/security-portal
+Environment="PATH=/opt/security-portal/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+Environment="FLASK_ENV=production"
+Environment="SECRET_KEY=prod-azure-sec-portal-super-secret-key-2024"
+Environment="DATABASE_PATH=/opt/security-portal/data/portal_security.db"
+
+# 3 workers de Gunicorn escuchando exclusivamente en localhost (127.0.0.1)
+ExecStart=/opt/security-portal/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 --access-logfile /opt/security-portal/logs/access.log --error-logfile /opt/security-portal/logs/error.log run:app
+
+# Medida de Alta Disponibilidad: auto-reinicio inmediato ante fallos o caídas
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=10
+
+# Hardening a nivel de proceso Systemd
+ProtectSystem=full
+ProtectHome=true
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

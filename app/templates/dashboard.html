@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard SOC | Monitoreo de Seguridad{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+    <!-- Encabezado del Dashboard -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                <span>Centro de Gestión de Incidentes de Seguridad</span>
+            </h1>
+            <p class="text-sm text-slate-400 mt-1">
+                Conectado como <strong class="text-slate-200">{{ current_user.full_name }}</strong> con privilegios de 
+                <span class="font-mono text-xs px-2 py-0.5 rounded font-bold uppercase {{ 'bg-red-500/20 text-red-300' if current_user.role == 'admin' else 'bg-blue-500/20 text-blue-300' }}">
+                    {{ current_user.role }}
+                </span>
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('routes.new_incident') }}"
+                class="inline-flex items-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition">
+                <i class="fa-solid fa-circle-exclamation mr-2"></i> Reportar Incidente
+            </a>
+            {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('routes.admin_audit_logs') }}"
+                class="inline-flex items-center px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 text-sm font-semibold rounded-xl border border-amber-500/30 transition">
+                <i class="fa-solid fa-list-check mr-2"></i> Auditoría ISO 27001
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Métricas y Estadísticas (Tarjetas KPI) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Críticos -->
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm relative overflow-hidden">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-xs uppercase tracking-wider font-semibold text-slate-400">Incidentes Críticos</p>
+                    <h3 class="text-3xl font-extrabold text-rose-500 mt-2">{{ stats.criticos }}</h3>
+                </div>
+                <div class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400">
+                    <i class="fa-solid fa-fire text-lg"></i>
+                </div>
+            </div>
+            <div class="mt-3 text-[11px] text-slate-500">Prioridad máxima de respuesta</div>
+        </div>
+
+        <!-- Abiertos -->
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm relative overflow-hidden">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-xs uppercase tracking-wider font-semibold text-slate-400">Abiertos / Nuevos</p>
+                    <h3 class="text-3xl font-extrabold text-amber-500 mt-2">{{ stats.abiertos }}</h3>
+                </div>
+                <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400">
+                    <i class="fa-solid fa-bell text-lg"></i>
+                </div>
+            </div>
+            <div class="mt-3 text-[11px] text-slate-500">Pendientes de asignación</div>
+        </div>
+
+        <!-- En Análisis -->
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm relative overflow-hidden">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-xs uppercase tracking-wider font-semibold text-slate-400">En Análisis</p>
+                    <h3 class="text-3xl font-extrabold text-sky-400 mt-2">{{ stats.analisis }}</h3>
+                </div>
+                <div class="p-3 bg-sky-500/10 border border-sky-500/20 rounded-xl text-sky-400">
+                    <i class="fa-solid fa-magnifying-glass-chart text-lg"></i>
+                </div>
+            </div>
+            <div class="mt-3 text-[11px] text-slate-500">Investigación en curso</div>
+        </div>
+
+        <!-- Resueltos -->
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm relative overflow-hidden">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-xs uppercase tracking-wider font-semibold text-slate-400">Mitigados / Cerrados</p>
+                    <h3 class="text-3xl font-extrabold text-emerald-400 mt-2">{{ stats.resueltos }}</h3>
+                </div>
+                <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
+                    <i class="fa-solid fa-shield-check text-lg"></i>
+                </div>
+            </div>
+            <div class="mt-3 text-[11px] text-slate-500">Controles aplicados</div>
+        </div>
+    </div>
+
+    <!-- Tabla Principal de Incidentes -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+        <div class="p-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+            <div>
+                <h2 class="text-lg font-bold text-white">Registro de Eventos e Incidentes Activos</h2>
+                <p class="text-xs text-slate-400">Eventos de seguridad correlacionados en el entorno cloud</p>
+            </div>
+            <span class="text-xs font-mono text-slate-400 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800">
+                Mostrando últimos {{ incidents|length }} registros
+            </span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-300">
+                <thead class="bg-slate-950/70 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+                    <tr>
+                        <th class="py-3 px-4">ID</th>
+                        <th class="py-3 px-4">Incidente / Amenaza</th>
+                        <th class="py-3 px-4">Severidad</th>
+                        <th class="py-3 px-4">Estado</th>
+                        <th class="py-3 px-4">Reportado Por</th>
+                        <th class="py-3 px-4">Fecha</th>
+                        {% if current_user.role == 'admin' %}
+                        <th class="py-3 px-4 text-center">Acción (Admin RBAC)</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800">
+                    {% for inc in incidents %}
+                    <tr class="hover:bg-slate-800/50 transition">
+                        <td class="py-3 px-4 font-mono text-xs text-slate-400">#{{ inc['id'] }}</td>
+                        <td class="py-3 px-4">
+                            <div class="font-semibold text-white">{{ inc['title'] }}</div>
+                            <div class="text-xs text-slate-400 truncate max-w-md">{{ inc['description'] }}</div>
+                        </td>
+                        <td class="py-3 px-4">
+                            {% if inc['severity'] == 'CRITICO' %}
+                                <span class="px-2 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">CRÍTICO</span>
+                            {% elif inc['severity'] == 'ALTO' %}
+                                <span class="px-2 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">ALTO</span>
+                            {% elif inc['severity'] == 'MEDIO' %}
+                                <span class="px-2 py-1 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">MEDIO</span>
+                            {% else %}
+                                <span class="px-2 py-1 rounded-full text-xs font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">BAJO</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="font-mono text-xs px-2 py-0.5 rounded
+                                {% if inc['status'] == 'ABIERTO' %} bg-rose-950 text-rose-400 border border-rose-800
+                                {% elif inc['status'] == 'EN_ANALISIS' %} bg-sky-950 text-sky-400 border border-sky-800
+                                {% else %} bg-emerald-950 text-emerald-400 border border-emerald-800 {% endif %}">
+                                {{ inc['status'] }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-xs font-medium text-slate-300">
+                            <i class="fa-regular fa-user mr-1 text-slate-500"></i>{{ inc['reported_by'] }}
+                        </td>
+                        <td class="py-3 px-4 text-xs text-slate-400 font-mono">
+                            {{ inc['created_at'] }}
+                        </td>
+                        {% if current_user.role == 'admin' %}
+                        <td class="py-3 px-4 text-center">
+                            <form action="{{ url_for('routes.update_incident_status', incident_id=inc['id']) }}" method="POST" class="inline-flex items-center gap-1">
+                                <select name="status" class="bg-slate-950 border border-slate-700 text-xs rounded-lg px-2 py-1 text-slate-200 focus:outline-none focus:border-indigo-500">
+                                    <option value="ABIERTO" {% if inc['status'] == 'ABIERTO' %}selected{% endif %}>Abierto</option>
+                                    <option value="EN_ANALISIS" {% if inc['status'] == 'EN_ANALISIS' %}selected{% endif %}>En Análisis</option>
+                                    <option value="RESUELTO" {% if inc['status'] == 'RESUELTO' %}selected{% endif %}>Resuelto</option>
+                                    <option value="CERRADO" {% if inc['status'] == 'CERRADO' %}selected{% endif %}>Cerrado</option>
+                                </select>
+                                <button type="submit" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold" title="Actualizar estado">
+                                    <i class="fa-solid fa-check"></i>
+                                </button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="py-8 text-center text-slate-500 text-sm">
+                            No hay incidentes registrados en el sistema.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

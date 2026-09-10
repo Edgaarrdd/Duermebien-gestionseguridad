@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Gestión de Usuarios e Identidades (RBAC) | SOC Portal{% endblock %}
+{% block title %}Gestión IAM de Usuarios | Hostify{% endblock %}
 
 {% block content %}
 <div class="space-y-8">
@@ -51,10 +51,9 @@
 
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Rol Asignado (RBAC)</label>
-                    <select name="role"
-                        class="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
-                        <option value="operador" selected>Operador (Acceso limitado a reporte y visualización)</option>
-                        <option value="admin">Administrador (Control total, auditoría y gestión IAM)</option>
+                    <select name="role" required class="block w-full rounded-md border-slate-700 bg-slate-800 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border">
+                        <option value="encargado">Encargado de Recepción</option>
+                        <option value="admin">Administrador General (CISO)</option>
                     </select>
                 </div>
 

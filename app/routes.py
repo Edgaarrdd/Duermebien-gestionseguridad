@@ -21,7 +21,7 @@ def health_check():
     """Endpoint de monitoreo de disponibilidad para sondas y balanceadores"""
     return jsonify({
         "status": "UP",
-        "service": "Portal de Seguridad y Gestión de Incidentes",
+        "service": "Hostify Hotel Management System",
         "compliance": ["ISO 27001", "NIST CSF", "CSA STAR"],
         "timestamp": request.environ.get("REQUEST_TIME", "")
     }), 200
@@ -89,90 +89,157 @@ def dashboard():
     conn = get_db_connection(current_app.config["DATABASE_PATH"])
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) FROM incidents WHERE status = 'ABIERTO'")
-    count_abiertos = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM rooms WHERE status = 'DISPONIBLE'")
+    count_disponibles = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM incidents WHERE status = 'EN_ANALISIS'")
-    count_analisis = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM rooms WHERE status = 'OCUPADA'")
+    count_ocupadas = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM incidents WHERE status IN ('RESUELTO', 'CERRADO')")
-    count_resueltos = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM reservations WHERE status = 'PENDIENTE'")
+    count_pendientes = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM incidents WHERE severity = 'CRITICO' AND status != 'CERRADO'")
-    count_criticos = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM guests")
+    count_guests = cursor.fetchone()[0]
 
-    cursor.execute("SELECT * FROM incidents ORDER BY created_at DESC LIMIT 10")
-    incidents = cursor.fetchall()
+    # Traer reservas recientes
+    cursor.execute("""
+        SELECT r.id, ro.number as room_number, g.full_name as guest_name, r.check_in_date, r.check_out_date, r.status
+        FROM reservations r
+        JOIN rooms ro ON r.room_id = ro.id
+        JOIN guests g ON r.guest_id = g.id
+        ORDER BY r.created_at DESC LIMIT 10
+    """)
+    reservations = cursor.fetchall()
     conn.close()
 
     return render_template(
         "dashboard.html",
         stats={
-            "abiertos": count_abiertos,
-            "analisis": count_analisis,
-            "resueltos": count_resueltos,
-            "criticos": count_criticos
+            "disponibles": count_disponibles,
+            "ocupadas": count_ocupadas,
+            "pendientes": count_pendientes,
+            "huespedes": count_guests
         },
-        incidents=incidents
+        reservations=reservations
     )
 
-@routes.route("/incidents/new", methods=["GET", "POST"])
+@routes.route("/rooms")
 @login_required
-def new_incident():
-    if request.method == "POST":
-        title = request.form.get("title", "").strip()
-        description = request.form.get("description", "").strip()
-        severity = request.form.get("severity", "MEDIO")
+def rooms():
+    conn = get_db_connection(current_app.config["DATABASE_PATH"])
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM rooms ORDER BY number ASC")
+    rooms_list = cursor.fetchall()
+    conn.close()
+    return render_template("rooms.html", rooms=rooms_list)
 
-        if not title or not description:
-            flash("El título y la descripción son obligatorios.", "warning")
-            return render_template("new_incident.html")
-
-        conn = get_db_connection(current_app.config["DATABASE_PATH"])
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO incidents (title, description, severity, reported_by) VALUES (?, ?, ?, ?)",
-            (title, description, severity, session["username"])
-        )
-        conn.commit()
-        incident_id = cursor.lastrowid
-        conn.close()
-
-        record_audit(
-            action="INCIDENT_REPORTED",
-            status="SUCCESS",
-            details=f"Incidente #{incident_id} reportado: '{title}' con severidad {severity}"
-        )
-        flash("Incidente de seguridad registrado exitosamente.", "success")
-        return redirect(url_for("routes.dashboard"))
-
-    return render_template("new_incident.html")
-
-@routes.route("/incidents/<int:incident_id>/status", methods=["POST"])
+@routes.route("/rooms/<int:room_id>/status", methods=["POST"])
 @login_required
 @role_required("admin")
-def update_incident_status(incident_id):
+def update_room_status(room_id):
     new_status = request.form.get("status")
-    if new_status not in ['ABIERTO', 'EN_ANALISIS', 'RESUELTO', 'CERRADO']:
+    if new_status not in ['DISPONIBLE', 'OCUPADA', 'MANTENIMIENTO', 'LIMPIEZA']:
         flash("Estado no válido.", "danger")
-        return redirect(url_for("routes.dashboard"))
+        return redirect(url_for("routes.rooms"))
 
     conn = get_db_connection(current_app.config["DATABASE_PATH"])
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE incidents SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        (new_status, incident_id)
-    )
+    cursor.execute("UPDATE rooms SET status = ? WHERE id = ?", (new_status, room_id))
     conn.commit()
     conn.close()
 
     record_audit(
-        action="INCIDENT_STATUS_CHANGE",
+        action="ROOM_STATUS_CHANGE",
         status="SUCCESS",
-        details=f"Incidente #{incident_id} actualizado a estado '{new_status}' por administrador {session['username']}"
+        details=f"Habitación #{room_id} actualizada a estado '{new_status}' por administrador {session['username']}"
     )
-    flash(f"Estado del incidente #{incident_id} actualizado a {new_status}.", "success")
-    return redirect(url_for("routes.dashboard"))
+    flash(f"Estado de la habitación actualizado a {new_status}.", "success")
+    return redirect(url_for("routes.rooms"))
+
+@routes.route("/guests", methods=["GET", "POST"])
+@login_required
+def guests():
+    conn = get_db_connection(current_app.config["DATABASE_PATH"])
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        email = request.form.get("email", "").strip()
+        phone = request.form.get("phone", "").strip()
+        
+        if not full_name or not email:
+            flash("El nombre y el email son obligatorios.", "warning")
+        else:
+            try:
+                cursor.execute(
+                    "INSERT INTO guests (full_name, email, phone) VALUES (?, ?, ?)",
+                    (full_name, email, phone)
+                )
+                conn.commit()
+                record_audit(
+                    action="GUEST_CREATED",
+                    status="SUCCESS",
+                    details=f"Huésped '{full_name}' registrado por {session['username']}"
+                )
+                flash(f"Huésped {full_name} registrado con éxito.", "success")
+            except Exception as e:
+                flash(f"Error al registrar huésped (posible email duplicado).", "danger")
+
+    cursor.execute("SELECT * FROM guests ORDER BY created_at DESC")
+    guests_list = cursor.fetchall()
+    conn.close()
+    return render_template("guests.html", guests=guests_list)
+
+@routes.route("/reservations", methods=["GET", "POST"])
+@login_required
+def reservations():
+    conn = get_db_connection(current_app.config["DATABASE_PATH"])
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        room_id = request.form.get("room_id")
+        guest_id = request.form.get("guest_id")
+        check_in = request.form.get("check_in")
+        check_out = request.form.get("check_out")
+
+        if not room_id or not guest_id or not check_in or not check_out:
+            flash("Todos los campos son obligatorios para crear una reserva.", "warning")
+        else:
+            cursor.execute(
+                "INSERT INTO reservations (room_id, guest_id, check_in_date, check_out_date, created_by) VALUES (?, ?, ?, ?, ?)",
+                (room_id, guest_id, check_in, check_out, session["username"])
+            )
+            # Update room status to OCUPADA automatically as an example of business logic
+            cursor.execute("UPDATE rooms SET status = 'OCUPADA' WHERE id = ?", (room_id,))
+            conn.commit()
+            
+            res_id = cursor.lastrowid
+            record_audit(
+                action="RESERVATION_CREATED",
+                status="SUCCESS",
+                details=f"Reserva #{res_id} creada para huésped #{guest_id} en habitación #{room_id}"
+            )
+            flash("Reserva creada con éxito.", "success")
+
+    cursor.execute("""
+        SELECT r.id, ro.number as room_number, g.full_name as guest_name, r.check_in_date, r.check_out_date, r.status
+        FROM reservations r
+        JOIN rooms ro ON r.room_id = ro.id
+        JOIN guests g ON r.guest_id = g.id
+        ORDER BY r.created_at DESC
+    """)
+    reservations_list = cursor.fetchall()
+    
+    # Para el formulario de nueva reserva
+    cursor.execute("SELECT * FROM rooms WHERE status = 'DISPONIBLE'")
+    available_rooms = cursor.fetchall()
+    
+    cursor.execute("SELECT * FROM guests ORDER BY full_name ASC")
+    all_guests = cursor.fetchall()
+    
+    conn.close()
+    return render_template("reservations.html", reservations=reservations_list, rooms=available_rooms, guests=all_guests)
+
 
 @routes.route("/admin/users", methods=["GET", "POST"])
 @login_required
@@ -185,7 +252,7 @@ def admin_users():
         username = request.form.get("username", "").strip()
         full_name = request.form.get("full_name", "").strip()
         password = request.form.get("password", "")
-        role = request.form.get("role", "operador")
+        role = request.form.get("role", "encargado")
 
         if not username or not password or not full_name:
             flash("Todos los campos son obligatorios para crear usuario.", "warning")

@@ -19,25 +19,49 @@ def init_db(db_path):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('admin', 'operador')),
+            role TEXT NOT NULL CHECK(role IN ('admin', 'encargado')),
             full_name TEXT NOT NULL,
             is_active INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
 
-    # Tabla de Incidentes de Seguridad
+    # Tabla de Habitaciones
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS incidents (
+        CREATE TABLE IF NOT EXISTS rooms (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            severity TEXT NOT NULL CHECK(severity IN ('CRITICO', 'ALTO', 'MEDIO', 'BAJO')),
-            status TEXT NOT NULL DEFAULT 'ABIERTO' CHECK(status IN ('ABIERTO', 'EN_ANALISIS', 'RESUELTO', 'CERRADO')),
-            reported_by TEXT NOT NULL,
-            assigned_to TEXT DEFAULT 'Sin asignar',
+            number TEXT UNIQUE NOT NULL,
+            type TEXT NOT NULL,
+            price_per_night REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'DISPONIBLE' CHECK(status IN ('DISPONIBLE', 'OCUPADA', 'MANTENIMIENTO', 'LIMPIEZA')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # Tabla de Huéspedes
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS guests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            full_name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            phone TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # Tabla de Reservas
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reservations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_id INTEGER NOT NULL,
+            guest_id INTEGER NOT NULL,
+            check_in_date DATE NOT NULL,
+            check_out_date DATE NOT NULL,
+            status TEXT NOT NULL DEFAULT 'PENDIENTE' CHECK(status IN ('PENDIENTE', 'CONFIRMADA', 'CANCELADA', 'COMPLETADA')),
+            created_by TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            FOREIGN KEY (room_id) REFERENCES rooms(id),
+            FOREIGN KEY (guest_id) REFERENCES guests(id)
         );
     """)
 
@@ -63,13 +87,13 @@ def init_db(db_path):
                 "admin",
                 generate_password_hash("AdminSecurity2024!"),
                 "admin",
-                "Oficial de Seguridad (CISO)"
+                "Administrador General"
             ),
             (
-                "operador",
-                generate_password_hash("OperatorSecurity2024!"),
-                "operador",
-                "Analista de Ciberseguridad SOC"
+                "encargado",
+                generate_password_hash("EncargadoSecurity2024!"),
+                "encargado",
+                "Encargado de Recepción"
             )
         ]
         cursor.executemany(
@@ -77,42 +101,32 @@ def init_db(db_path):
             default_users
         )
 
-        # Sembrado inicial de incidentes de prueba para evaluación
-        sample_incidents = [
-            (
-                "Intento de fuerza bruta detectado en puerto SSH",
-                "Se registraron múltiples intentos de autenticación fallida desde IP 198.51.100.45. Fail2ban bloqueó la IP automáticamente.",
-                "ALTO",
-                "RESUELTO",
-                "operador",
-                "admin"
-            ),
-            (
-                "Alerta de consumo inusual de CPU en servidor",
-                "Posible proceso anómalo consumiendo 85% de CPU durante la ventana nocturna.",
-                "MEDIO",
-                "EN_ANALISIS",
-                "operador",
-                "admin"
-            ),
-            (
-                "Detección de escaneo de puertos en perímetro",
-                "Sondeo SYN hacia puertos no expuestos bloqueado por Network Security Group de Azure.",
-                "BAJO",
-                "CERRADO",
-                "admin",
-                "operador"
-            )
+        # Sembrado inicial de habitaciones
+        sample_rooms = [
+            ("101", "Sencilla", 50000.0, "DISPONIBLE"),
+            ("102", "Doble", 80000.0, "DISPONIBLE"),
+            ("201", "Suite", 150000.0, "DISPONIBLE"),
+            ("202", "Doble", 80000.0, "LIMPIEZA")
         ]
         cursor.executemany(
-            "INSERT INTO incidents (title, description, severity, status, reported_by, assigned_to) VALUES (?, ?, ?, ?, ?, ?)",
-            sample_incidents
+            "INSERT INTO rooms (number, type, price_per_night, status) VALUES (?, ?, ?, ?)",
+            sample_rooms
+        )
+
+        # Sembrado inicial de huéspedes
+        sample_guests = [
+            ("Juan Pérez", "juan.perez@email.com", "+56912345678"),
+            ("María Gómez", "maria.gomez@email.com", "+56987654321")
+        ]
+        cursor.executemany(
+            "INSERT INTO guests (full_name, email, phone) VALUES (?, ?, ?)",
+            sample_guests
         )
 
         # Registro inicial de auditoría
         cursor.execute(
             "INSERT INTO audit_logs (username, role, action, ip_address, status, details) VALUES (?, ?, ?, ?, ?, ?)",
-            ("system", "SYSTEM", "INIT_DB", "127.0.0.1", "SUCCESS", "Base de datos inicializada con usuarios y políticas RBAC")
+            ("system", "SYSTEM", "INIT_DB", "127.0.0.1", "SUCCESS", "Base de datos Hostify inicializada con usuarios y políticas RBAC")
         )
 
     conn.commit()

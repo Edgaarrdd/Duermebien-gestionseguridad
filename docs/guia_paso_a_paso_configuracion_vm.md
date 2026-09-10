@@ -81,7 +81,7 @@ git branch -M main
 
 # 5. Conectar tu repositorio remoto de GitHub (crea un repo vacio en github.com previamente)
 # Reemplaza la URL por la de tu propio repositorio:
-git remote add origin https://github.com/TU_USUARIO/TU_REPOSITORIO.git
+git remote add origin https://github.com/Edgaarrdd/Duermebien-gestionseguridad.git
 
 # 6. Subir los archivos a GitHub
 git push -u origin main
@@ -142,7 +142,7 @@ Clonamos el proyecto en la carpeta personal de `azureuser`:
 
 ```bash
 cd ~
-git clone https://github.com/TU_USUARIO/TU_REPOSITORIO.git evaluacion3
+git clone https://github.com/Edgaarrdd/Duermebien-gestionseguridad.git evaluacion3
 cd evaluacion3
 ```
 

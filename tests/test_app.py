@@ -55,9 +55,9 @@ class SecurityPortalTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Credenciales", response.data)
 
-    def test_rbac_operator_restricted_from_admin_areas(self):
-        # Iniciar sesión como operador
-        self.login("operador", "OperatorSecurity2024!")
+    def test_rbac_encargado_restricted_from_admin_areas(self):
+        # Iniciar sesión como encargado
+        self.login("encargado", "EncargadoSecurity2024!")
 
         # Intento de entrar a logs de auditoría (solo admin)
         resp_audit = self.client.get("/admin/audit-logs", follow_redirects=True)
@@ -91,24 +91,24 @@ class SecurityPortalTestCase(unittest.TestCase):
         self.assertEqual(resp_users.status_code, 200)
         self.assertIn(b"directorio de cuentas", resp_users.data.lower())
 
-    def test_incident_creation_and_audit(self):
-        self.login("operador", "OperatorSecurity2024!")
+    def test_guest_creation_and_audit(self):
+        self.login("encargado", "EncargadoSecurity2024!")
         post_data = {
-            "title": "Fuga simulada de datos en S3",
-            "severity": "ALTO",
-            "description": "Se detectó acceso no autorizado a bucket público."
+            "full_name": "Usuario Prueba Test",
+            "email": "test@prueba.com",
+            "phone": "+56999999999"
         }
-        response = self.client.post("/incidents/new", data=post_data, follow_redirects=True)
+        response = self.client.post("/guests", data=post_data, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Fuga simulada de datos en S3", response.data)
+        self.assertIn(b"Usuario Prueba Test", response.data)
 
         # Verificar registro en base de datos
         conn = get_db_connection(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM incidents WHERE title = ?", ("Fuga simulada de datos en S3",))
-        incident = cursor.fetchone()
-        self.assertIsNotNone(incident)
-        self.assertEqual(incident["severity"], "ALTO")
+        cursor.execute("SELECT * FROM guests WHERE full_name = ?", ("Usuario Prueba Test",))
+        guest = cursor.fetchone()
+        self.assertIsNotNone(guest)
+        self.assertEqual(guest["email"], "test@prueba.com")
         conn.close()
 
 if __name__ == "__main__":

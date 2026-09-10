@@ -1,7 +1,7 @@
-# Portal de Gestión de Incidentes de Seguridad (SOC Portal)
+# Hostify - Sistema de Gestión Hotelera (Seguro)
 ### Proyecto Integrador: Gestión de Seguridad de la Información - Evaluación 3
 
-Solución web en la nube segura, disponible y alineada con los marcos **ISO/IEC 27001**, **NIST SP 800-53/800-61**, **Cloud Security Alliance (CSA)** y el **Modelo de Responsabilidad Compartida**.
+Solución web para gestión hotelera (basada en el diseño de Hostify) segura, disponible y alineada con los marcos **ISO/IEC 27001**, **NIST SP 800-53/800-61**, **Cloud Security Alliance (CSA)** y el **Modelo de Responsabilidad Compartida**.
 
 ---
 
@@ -14,12 +14,14 @@ Evaluación 3/
 │   ├── config.py                     # Variables de configuración y cookies seguras
 │   ├── models.py                     # Esquema SQLite, tablas RBAC y sembrado inicial
 │   ├── auth.py                       # Decoradores RBAC y módulo de auditoría estructurada
-│   ├── routes.py                     # Controladores (Dashboard, Incidentes, IAM, Logs, Health)
-│   └── templates/                    # Interfaz HTML5 + Tailwind CSS (Diseño SOC Dark Mode)
+│   ├── routes.py                     # Controladores (Dashboard, Habitaciones, Huéspedes, Reservas)
+│   └── templates/                    # Interfaz HTML5 + Tailwind CSS (Diseño SOC Dark Mode / Hostify)
 │       ├── base.html                 # Layout maestro con navegación por roles
 │       ├── login.html                # Login seguro con aviso de auditoría ISO 27001
-│       ├── dashboard.html            # Panel de KPIs, listado y cambio de estados
-│       ├── new_incident.html         # Formulario para reporte de incidentes
+│       ├── dashboard.html            # Panel de KPIs, estado de habitaciones y reservas
+│       ├── rooms.html                # Listado de habitaciones y cambio de estados
+│       ├── guests.html               # Formulario de registro y listado de huéspedes
+│       ├── reservations.html         # Creación y gestión de reservas
 │       ├── admin_users.html          # Directorio y provisión de usuarios (Solo Admin)
 │       └── audit_logs.html           # Bitácora centralizada de eventos (Solo Admin)
 ├── deploy/                           # Archivos de despliegue en VM Azure
@@ -38,6 +40,7 @@ Evaluación 3/
 │   ├── 2_matriz_de_riesgos_iso27001_nist_csa.md
 │   ├── 3_configuracion_iam_azure.md
 │   └── 4_seguridad_red_hardening_y_pruebas_disponibilidad.md
+├── Hostify/                          # Código fuente Next.js original de Hostify usado como plantilla/referencia
 ├── .gitignore                        # Prevención de fuga de credenciales (.pem, .db, .env)
 ├── .env.example                      # Plantilla de variables de entorno
 ├── requirements.txt                  # Dependencias de Python
@@ -63,15 +66,8 @@ ssh -i "C:\Users\Edgard\.ssh\duermebienvm.pem" azureuser@64.236.183.223
 
 ### 2. Clonar desde GitHub y ejecutar
 ```bash
-git clone https://github.com/TU_USUARIO/TU_REPOSITORIO.git evaluacion3
+git clone https://github.com/Edgaarrdd/Duermebien-gestionseguridad.git evaluacion3
 cd evaluacion3
-sudo bash deploy/setup_vm.sh
-```
-
-### Paso 3: Ejecutar el script de despliegue automático
-En la consola de la VM:
-```bash
-cd ~/evaluacion3
 sudo bash deploy/setup_vm.sh
 ```
 
@@ -91,8 +87,8 @@ El script configurará automáticamente:
 
 | Rol | Usuario | Contraseña | Capacidades |
 | :--- | :--- | :--- | :--- |
-| **Administrador (CISO)** | `admin` | `AdminSecurity2024!` | Gestión de usuarios, consulta de bitácora de auditoría ISO 27001, resolución de incidentes. |
-| **Operador (Analista SOC)** | `operador` | `OperatorSecurity2024!` | Reporte de incidentes y visualización del panel general (acceso denegado a funciones administrativas). |
+| **Administrador (CISO)** | `admin` | `AdminSecurity2024!` | Gestión de usuarios, consulta de bitácora de auditoría ISO 27001, resolución de incidentes, cambio estado de habitaciones. |
+| **Encargado (Recepción)** | `encargado` | `EncargadoSecurity2024!` | Gestión de reservas, huéspedes y visualización del panel general (acceso denegado a funciones administrativas). |
 
 ---
 
@@ -101,4 +97,4 @@ Para verificar el correcto funcionamiento local:
 ```bash
 python -m unittest discover tests
 ```
-*Resultado: 7 pruebas ejecutadas con éxito (Health, Security Headers, Login, RBAC Operator Denied, RBAC Admin Allowed, Incident Creation).*
+*Resultado: 7 pruebas ejecutadas con éxito (Health, Security Headers, Login, RBAC Encargado Denied, RBAC Admin Allowed, Creación de Huéspedes).*

@@ -9,6 +9,5 @@ class Config:
     # Configuraciones de seguridad para cookies y sesiones (OWASP / ISO 27001 A.9)
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    # Solo activar SESSION_COOKIE_SECURE si se cuenta con HTTPS activo
-    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "False").lower() in ("true", "1")
+    SESSION_COOKIE_SECURE = False  # Permitir sesiones sobre HTTP (puerto 80) sin SSL
     PERMANENT_SESSION_LIFETIME = 1800  # 30 minutos de inactividad

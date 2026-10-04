@@ -1,12 +1,27 @@
 #!/usr/bin/env bash
-# Script para solucionar acceso inmediato en la VM
+# ==============================================================================
+# Script de Reparación Inmediata de Acceso y Credenciales en VM Azure
+# ==============================================================================
 set -e
 
-echo "[+] Corrigiendo configuración de cookies seguras para HTTP en /opt/security-portal/app/config.py..."
-sudo sed -i 's/SESSION_COOKIE_SECURE = os.environ.get("FLASK_ENV") == "production"/SESSION_COOKIE_SECURE = False/g' /opt/security-portal/app/config.py
-sudo sed -i 's/SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "False").lower() in ("true", "1")/SESSION_COOKIE_SECURE = False/g' /opt/security-portal/app/config.py
+echo "[1/4] Configurando SESSION_COOKIE_SECURE = False en /opt/security-portal/app/config.py..."
+cat << 'EOF' | sudo tee /opt/security-portal/app/config.py > /dev/null
+import os
 
-echo "[+] Asegurando credenciales en la base de datos de Hostify..."
+BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
+class Config:
+    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secure-key-cloud-security-evaluation-3-iso27001")
+    DATABASE_PATH = os.environ.get("DATABASE_PATH", os.path.join(BASE_DIR, "data", "portal_security.db"))
+    
+    # Configuraciones de seguridad para cookies y sesiones (OWASP / ISO 27001 A.9)
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = False  # Permitir sesiones sobre HTTP (puerto 80) sin SSL
+    PERMANENT_SESSION_LIFETIME = 1800  # 30 minutos de inactividad
+EOF
+
+echo "[2/4] Verificando e insertando usuarios en la base de datos de Hostify..."
 sudo /opt/security-portal/venv/bin/python << 'EOF'
 import sqlite3
 from werkzeug.security import generate_password_hash
@@ -39,21 +54,26 @@ c.execute("""
 
 conn.commit()
 
+print("[✓] Usuarios listos en la base de datos:")
 c.execute("SELECT id, username, role, is_active FROM users")
-print("[✓] Usuarios actuales en BD:")
-for row in c.fetchall():
-    print(f"    - ID: {row[0]}, Usuario: {row[1]}, Rol: {row[2]}, Activo: {row[3]}")
+for u in c.fetchall():
+    print(f"    - ID: {u[0]} | Usuario: {u[1]} | Rol: {u[2]} | Activo: {u[3]}")
 
 conn.close()
 EOF
 
-echo "[+] Ajustando permisos de appuser..."
+echo "[3/4] Ajustando permisos de carpetas para appuser..."
 sudo chown -R appuser:appuser /opt/security-portal
 
-echo "[+] Reiniciando servicio security-portal..."
+echo "[4/4] Reiniciando servicio security-portal..."
 sudo systemctl restart security-portal
 sleep 2
 
-echo "[✓] Servicio reiniciado con éxito. Prueba iniciar sesión en tu navegador ahora:"
-echo "    - Encargado: encargado / EncargadoSecurity2024!"
-echo "    - Admin:     admin / AdminSecurity2024!"
+echo "======================================================================"
+echo " [✓] REPARACIÓN EXITOSA. Ya puedes iniciar sesión en tu navegador:"
+echo " URL: http://$(curl -s ifconfig.me || hostname -I | awk '{print $1}')"
+echo ""
+echo " Credenciales listas para probar:"
+echo "  1) Encargado (Recepción): encargado / EncargadoSecurity2024!"
+echo "  2) Administrador:          admin / AdminSecurity2024!"
+echo "======================================================================"

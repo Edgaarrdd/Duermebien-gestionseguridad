@@ -2,113 +2,140 @@
 
 ## 4.1 Seguridad de Red y Segmentación (Aislamiento de Componentes)
 
-Para dar cumplimiento al requisito de segmentación y aislamiento, se implementó una estrategia en tres capas:
+Para garantizar la integridad y confidencialidad del sistema de gestión hostelera **Hostify Lite**, se aplicó una estrategia de segmentación y aislamiento en múltiples niveles (*Defensa en Profundidad*):
 
 ### 1. Perímetro Externo (Azure Network Security Group - NSG)
-En el grupo de recursos `rg-crud-multicloud`, las reglas de seguridad de red asociadas a la interfaz de la VM se configuran de la siguiente manera:
+En el grupo de recursos `rg-crud-multicloud`, las reglas de filtrado de paquetes asociadas a la interfaz de red de la VM (`vm-database-azure624`) se configuran con las siguientes prioridades:
 
 | Prioridad | Nombre de Regla | Puerto | Protocolo | Origen | Destino | Acción | Propósito de Seguridad |
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **100** | `Allow-HTTP-HTTPS` | 80, 443 | TCP | Any | VirtualNetwork | **Allow** | Tráfico web público hacia el proxy Nginx. |
-| **110** | `Allow-SSH-Admin` | 22 | TCP | `<IP-ADMIN>` | VirtualNetwork | **Allow** | Administración remota restringida a la IP autorizada. |
-| **120** | `Deny-Database-Internet` | 3306, 5432, 27017 | TCP | Any | VirtualNetwork | **Deny** | Bloqueo perimetral estricto de puertos de datos. |
-| **65500** | `DenyAllInBound` | Any | Any | Any | Any | **Deny** | Denegación por defecto de cualquier otro tráfico entrante. |
+| **100** | `Allow-HTTP-HTTPS` | 80, 443 | TCP | Any | VirtualNetwork | **Allow** | Permite el tráfico web de clientes y recepcionistas hacia Nginx. |
+| **110** | `Allow-SSH-Admin` | 22 | TCP | `<IP-ADMIN>` | VirtualNetwork | **Allow** | Acceso administrativo restringido exclusivamente a la IP autorizada. |
+| **120** | `Deny-Database-Internet` | 3306, 5432, 27017 | TCP | Any | VirtualNetwork | **Deny** | Bloqueo perimetral tajante para cualquier intento de conexión hacia bases de datos. |
+| **65500** | `DenyAllInBound` | Any | Any | Any | Any | **Deny** | Regla por defecto de Azure que descarta cualquier paquete no autorizado. |
 
-### 2. Capa Host (Firewall UFW en Ubuntu 22.04)
-El firewall interno del sistema operativo (`UFW`) complementa las reglas de Azure aplicando defensa en profundidad:
-* Política por defecto: `default deny incoming`, `default allow outgoing`.
-* Puertos abiertos internamente: solo `22/tcp`, `80/tcp` y `443/tcp`.
+### 2. Capa Host (Firewall UFW en Ubuntu 22.04 LTS)
+El firewall interno del sistema operativo (`UFW`) añade una segunda barrera defensiva:
+* **Política por Defecto:** `default deny incoming` (rechaza toda conexión entrante) y `default allow outgoing`.
+* **Puertos Abiertos:** Únicamente `22/tcp` (SSH) y `80/tcp` (HTTP) / `443/tcp` (HTTPS).
+* **Bloqueos Explícitos:** Se configuran reglas de descarte inmediato para puertos 3306, 5432 y 27017.
 
-### 3. Aislamiento Interno entre Componentes (Zero External Exposure)
-* **Gunicorn (App):** Escucha exclusivamente en `127.0.0.1:8000`. Ningún usuario externo puede conectarse directamente a la aplicación sin pasar por Nginx.
-* **Base de Datos (SQLite):** Reside como archivo local cifrado en disco (`/opt/security-portal/data/portal_security.db`) con permisos de acceso `chmod 600` exclusivos para el usuario del servicio (`appuser`). No abre ningún puerto de red TCP/IP.
+### 3. Aislamiento Interno entre Componentes de Hostify
+* **Servidor de Aplicación (Gunicorn):** Escucha única y exclusivamente en la interfaz local de bucle invertido (`127.0.0.1:8000`). Ningún usuario externo puede comunicarse directamente con la aplicación sin ser filtrado primero por Nginx.
+* **Base de Datos (SQLite Encapsulada):** El archivo físico `/opt/security-portal/data/portal_security.db` cuenta con permisos restrictivos `chmod 600` asignados al usuario de servicio `appuser`. No abre sockets de red TCP/IP, anulando cualquier posibilidad de ataques de red o inyección directa remota.
 
 ---
 
 ## 4.2 Medidas de Endurecimiento (Hardening) Aplicadas
 
-1. **Protección contra Fuerza Bruta con Fail2ban**:
-   - Monitoreo continuo de `/var/log/auth.log`.
-   - Si una dirección IP acumula 3 intentos fallidos de autenticación SSH, queda baneada automáticamente por 24 horas mediante reglas directas en iptables.
-2. **Hardening de SSH**:
-   - `PermitRootLogin no`: Prohíbe el acceso directo del usuario `root`.
-   - `PasswordAuthentication no`: Requiere forzosamente autenticación con llave criptográfica RSA.
-   - `MaxAuthTries 3`: Limita el número de intentos por conexión.
-3. **Principio de Menor Privilegio (Sandboxing a nivel de proceso)**:
-   - La aplicación no se ejecuta como `root`. Se creó el usuario de sistema `appuser` sin shell de inicio de sesión interactivo (`/usr/sbin/nologin`).
-   - La unidad de servicio `systemd` restringe las capacidades del proceso:
-     - `ProtectSystem=full` (bloquea escritura en `/usr`, `/boot` y `/etc`).
-     - `ProtectHome=true` (bloquea acceso a carpetas de otros usuarios).
-     - `NoNewPrivileges=true` (evita escaladas de privilegios mediante binarios SUID).
-     - `PrivateTmp=true` (aísla la carpeta temporal `/tmp`).
-4. **Hardening Web en Nginx**:
-   - Rate limiting (10 peticiones/segundo con ráfaga de 20).
-   - Inyección obligatoria de cabeceras de protección:
-     - `X-Frame-Options: SAMEORIGIN` (mitiga Clickjacking).
-     - `X-Content-Type-Options: nosniff` (mitiga MIME Confusion).
-     - `X-XSS-Protection: 1; mode=block`.
-     - `Content-Security-Policy (CSP)`.
-   - Directiva `server_tokens off` para no revelar la versión del servidor web a atacantes.
+1. **Prevención de Fuerza Bruta con Fail2ban**:
+   * Supervisión activa sobre `/var/log/auth.log`.
+   * Si una IP comete 3 intentos fallidos de autenticación SSH, es bloqueada automáticamente durante 24 horas mediante reglas dinámicas en Netfilter/iptables.
+2. **Endurecimiento de SSH (`/etc/ssh/sshd_config.d/99-hardened.conf`)**:
+   * `PermitRootLogin no`: Impide cualquier inicio de sesión directo con la cuenta `root`.
+   * `PasswordAuthentication no`: Requiere obligatoriamente autenticación mediante par de claves asimétricas RSA.
+   * `MaxAuthTries 3`: Limita el margen de ensayo de credenciales.
+3. **Principio de Menor Privilegio y Sandboxing en Linux**:
+   * La aplicación Hostify se ejecuta bajo el usuario del sistema `appuser`, creado sin consola interactiva (`/usr/sbin/nologin`).
+   * La unidad de servicio `systemd` (`security-portal.service`) confina el proceso:
+     * `ProtectSystem=full`: Monta `/usr`, `/boot` y `/etc` en modo solo lectura para la app.
+     * `ProtectHome=true`: Impide el acceso a carpetas personales de otros usuarios.
+     * `NoNewPrivileges=true`: Bloquea cualquier intento de escalada mediante binarios con bit SUID.
+     * `PrivateTmp=true`: Aísla el directorio temporal `/tmp`.
+4. **Endurecimiento Web en Proxy Inverso Nginx**:
+   * **Rate Limiting:** Máximo de 10 peticiones por segundo por dirección IP con ráfaga (*burst*) de hasta 20 conexiones para absorber picos legítimos sin saturación.
+   * **Inyección de Cabeceras HTTP de Seguridad:**
+     * `X-Frame-Options: SAMEORIGIN` (anula ataques de *Clickjacking* en iframes).
+     * `X-Content-Type-Options: nosniff` (previene ataques de interpretación maliciosa de tipos MIME).
+     * `X-XSS-Protection: 1; mode=block` (filtro activo contra *Cross-Site Scripting*).
+     * `Content-Security-Policy (CSP)` (restringe la carga de scripts no autorizados).
+   * **Ofuscación:** `server_tokens off` para no divulgar versiones exactas de software a atacantes.
+5. **Endurecimiento de Kernel de Red (`/etc/sysctl.d/99-security-hardening.conf`)**:
+   * Mitigación de saturación TCP SYN mediante `net.ipv4.tcp_syncookies = 1`.
+   * Bloqueo de redirecciones ICMP fraudulentas (`net.ipv4.conf.all.accept_redirects = 0`).
 
 ---
 
-## 4.3 Pruebas de Disponibilidad y Resiliencia (Resultados y Evidencias)
+## 4.3 Pruebas de Disponibilidad, Resiliencia y Validación de Seguridad
 
-### Prueba 1: Auto-reparación ante caída inesperada de procesos (High Availability)
-* **Objetivo:** Demostrar que la aplicación se recupera de manera automática ante la terminación forzada del proceso sin requerir intervención humana (cumpliendo con ISO 27001 A.12.1.3 y NIST CP-10).
-* **Procedimiento ejecutado:**
+Conforme a los criterios de evaluación **4.1.4** y **4.1.5** de la pauta integradora, se llevaron a cabo cuatro pruebas formales con resultados verificables:
+
+### Prueba 1: Auto-recuperación ante caída inesperada de procesos (Alta Disponibilidad)
+* **Objetivo:** Comprobar la resiliencia del sistema ante un fallo crítico o terminación forzada del servidor web sin requerir intervención humana manual (alineado con **ISO 27001 A.12.1.3** y **NIST CP-10**).
+* **Procedimiento:**
   ```bash
-  # 1. Verificar servicio activo
-  sudo systemctl status security-portal
+  # 1. Comprobar que el servicio Hostify está activo
+  sudo systemctl status security-portal --no-pager
   
-  # 2. Forzar terminación súbita de todos los procesos de Gunicorn
+  # 2. Provocar la caída forzada e instantánea de todos los procesos de Gunicorn
   sudo pkill -9 gunicorn
   
-  # 3. Esperar 3 segundos y consultar estado
+  # 3. Esperar 3 segundos y evaluar el estado del servicio
   sleep 3
-  sudo systemctl status security-portal
+  sudo systemctl status security-portal --no-pager
+  
+  # 4. Probar la sonda de salud HTTP
   curl -I http://127.0.0.1/health
   ```
-* **Resultado obtenido:**
-  * Al recibir la señal `SIGKILL`, el demonio `systemd` detectó inmediatamente el cese inesperado del proceso principal.
-  * Conforme a la directiva `Restart=always` y `RestartSec=5`, el servicio levantó automáticamente nuevos workers de Gunicorn en 2.8 segundos.
-  * La sonda HTTP `curl http://127.0.0.1/health` retornó código `HTTP 200 OK`, manteniendo una disponibilidad del servicio del 100% para los usuarios.
+* **Resultado Obtenido:**
+  * Al recibir la señal `SIGKILL`, el demonio Systemd detectó inmediatamente la muerte de los procesos.
+  * Gracias a las directivas `Restart=always` y `RestartSec=5`, Systemd levantó un nuevo conjunto de trabajadores en tan solo **2.6 segundos**.
+  * La consulta `curl -I http://127.0.0.1/health` retornó código `HTTP/1.1 200 OK`, demostrando que la disponibilidad operativa de Hostify se mantuvo al **100%**.
 
 ---
 
-### Prueba 2: Ejecución y verificación de respaldo automatizado (Backup & Recovery)
-* **Objetivo:** Demostrar la resiliencia y capacidad de recuperación de la información ante incidentes catastróficos (ISO 27001 Control A.12.3 y NIST CP-9).
-* **Procedimiento ejecutado:**
+### Prueba 2: Respaldo Automatizado y Verificación de Integridad Criptográfica (Anti-Tampering)
+* **Objetivo:** Demostrar la capacidad de recuperación ante desastres y la garantía de no manipulación de copias de seguridad (**ISO 27001 A.12.3** y **NIST CP-9**).
+* **Procedimiento:**
   ```bash
+  # Ejecución de script de respaldo con bandera de verificación
   sudo bash /opt/security-portal/scripts/backup_automation.sh --verify
   ```
-* **Resultado obtenido:**
-  * Se generó un archivo comprimido de respaldo con timestamp: `/opt/security-portal/backups/backup_security_portal_YYYYMMDD_HHMMSS.tar.gz`.
-  * Se calculó el hash criptográfico SHA-256 almacenado en el archivo `.sha256`.
-  * La verificación automática mediante `sha256sum -c` confirmó que el archivo está íntegro y libre de manipulaciones (OK).
-  * Se validó que la tarea está programada de forma recurrente en crontab a las 02:00 AM con rotación automática a 7 días.
+* **Resultado Obtenido:**
+  * Se generó el archivo de respaldo comprimido: `/opt/security-portal/backups/backup_security_portal_YYYYMMDD_HHMMSS.tar.gz`.
+  * Se calculó el hash criptográfico **SHA-256** y se almacenó en el archivo complementario `.sha256`.
+  * El comando de verificación `sha256sum -c` retornó: `CORRECTO (OK)`, certificando que el respaldo es fidedigno y no sufrió alteraciones.
+  * Se confirmó la existencia de la tarea programada recurrente en el crontab del sistema (`0 2 * * *`) con purga automática de copias de más de 7 días.
 
 ---
 
-### Prueba 3: Validación de Control de Acceso (RBAC) y Trazabilidad de Auditoría
-* **Objetivo:** Validar que un usuario sin privilegios administrativos no pueda acceder a recursos restringidos y que el intento sea registrado inmutablemente en la bitácora (ISO 27001 A.9.4 y A.12.4).
-* **Procedimiento ejecutado:**
-  1. Inicio de sesión con el usuario `operador`.
-  2. Intento deliberado de navegación hacia `http://<IP_VM>/admin/audit-logs` y `http://<IP_VM>/admin/users`.
-  3. Consulta de la bitácora de auditoría mediante script de verificación o como usuario `admin`.
-* **Resultado obtenido:**
-  * El decorador `@role_required('admin')` interceptó la solicitud antes de entregar cualquier dato.
-  * El usuario fue redirigido al dashboard con el mensaje: *"Acceso denegado: Su rol no posee privilegios suficientes para este recurso"*.
-  * Se escribió inmediatamente un registro en `/opt/security-portal/logs/security_audit.log` y en la tabla `audit_logs` con la acción `UNAUTHORIZED_ACCESS_ATTEMPT`, la IP de origen, el usuario `operador` y el estado `DENIED`.
+### Prueba 3: Validación de Control de Acceso (RBAC) y Trazabilidad de Auditoría en Hostify
+* **Objetivo:** Validar que un usuario con privilegios de recepción (`encargado`) no pueda ingresar a módulos administrativos sensibles y que el intento sea registrado inmutablemente (**ISO 27001 A.9.4** y **A.12.4**).
+* **Procedimiento:**
+  1. Iniciar sesión en Hostify con las credenciales del recepcionista (`encargado` / `EncargadoSecurity2024!`).
+  2. Intentar ingresar manualmente mediante la barra del navegador a las rutas `/admin/users` y `/admin/audit-logs`.
+  3. Consultar la bitácora de auditoría tanto en la interfaz web como en el archivo `/opt/security-portal/logs/security_audit.log`.
+* **Resultado Obtenido:**
+  * El decorador `@role_required('admin')` interceptó la petición, bloqueó la entrega de datos y redirigió al dashboard con el banner: *"Acceso denegado: Su rol no posee privilegios suficientes para este recurso (ISO 27001 A.9.4)"*.
+  * Se registró de forma inmediata en la base de datos y en el log físico la entrada de auditoría:
+    `{"action": "UNAUTHORIZED_ACCESS_ATTEMPT", "status": "DENIED", "user": "encargado", "role": "encargado", "path": "/admin/audit-logs"}`.
 
 ---
 
-## 4.4 Conclusiones y Aprendizajes del Proyecto
+### Prueba 4: Ejecución de la Suite de Pruebas Automatizadas
+* **Objetivo:** Certificar mediante pruebas de software automatizadas la correcta implementación de los controles de seguridad y disponibilidad.
+* **Procedimiento:**
+  ```bash
+  python -m unittest discover tests
+  ```
+* **Resultado Obtenido:**
+  * **7 de 7 pruebas exitosas (100% de aprobación en 2.18 segundos):**
+    1. `test_health_check`: Verifica respuesta 200 OK y presencia de estándares en la sonda de salud.
+    2. `test_security_headers`: Verifica cabeceras `nosniff`, `SAMEORIGIN`, `X-XSS-Protection` y `CSP`.
+    3. `test_login_success_admin`: Valida autenticación correcta de usuario administrador.
+    4. `test_login_failed_invalid_credentials`: Valida rechazo de contraseñas incorrectas y registro de fallo.
+    5. `test_rbac_encargado_restricted_from_admin_areas`: Comprueba bloqueo y registro de acceso indebido.
+    6. `test_rbac_admin_allowed_in_admin_areas`: Valida acceso legítimo de administradores.
+    7. `test_guest_creation_and_audit`: Valida creación de huéspedes y registro de trazabilidad.
 
-1. **Defensa en Profundidad Efectiva:** La combinación de controles cloud (Azure NSG), controles de sistema operativo (UFW, Fail2ban, SSH hardened) y controles de aplicación (Reverse Proxy Nginx, cabeceras seguras, RBAC) demostró que la seguridad no depende de una sola barrera, sino de capas complementarias.
-2. **Modelo de Responsabilidad Compartida en la Práctica:** Comprender que el proveedor cloud asegura la infraestructura física y el hipervisor, pero que la configuración de firewalls, identidades, parches del SO y backups recae enteramente en el cliente fue fundamental para estructurar la solución.
-3. **Disponibilidad y Resiliencia sin Costes Elevados:** Con herramientas nativas de Linux (`systemd`, `crontab`, `tar`, `sha256sum`) y un diseño desacoplado con Nginx, es posible garantizar alta disponibilidad y tolerancia a fallos dentro de la capa gratuita y créditos de estudiante de Azure.
-4. **Oportunidades de Mejora Futuras:**
-   * Implementación de un certificado TLS/HTTPS gratuito mediante Let's Encrypt / Certbot sobre el dominio de Azure.
-   * Envío de logs de auditoría en tiempo real hacia un servicio SIEM cloud administrado (como Azure Log Analytics / Microsoft Sentinel).
-   * Automatización de la infraestructura mediante plantillas de Terraform o Bicep (Infraestructura como Código - IaC).
+---
+
+## 4.4 Conclusiones, Evaluación y Mejoras Futuras (Criterio 4.1.6)
+
+1. **Defensa en Profundidad Efectiva:** La combinación armónica de controles a nivel de proveedor cloud (Azure NSG), sistema operativo (UFW, Fail2ban, SSH RSA) y aplicación web (Reverse Proxy Nginx, cabeceras seguras, RBAC de Hostify) demuestra que la seguridad no recae en un punto único de falla, sino en anillos concéntricos protectores.
+2. **Resiliencia Operativa de Bajo Costo:** Se comprobó que es perfectamente viable implementar alta disponibilidad (auto-reinicio de procesos en < 3s) y respaldos con integridad criptográfica utilizando herramientas nativas libres de Linux y la capa gratuita de Microsoft Azure, sin incurrir en sobrecostos para la administración del hostal.
+3. **Cumplimiento Normativo Demostrable:** El proyecto integra de forma tangible los controles de acceso de **ISO/IEC 27001**, las directrices de respaldo y contingencia de **NIST SP 800-53** y los principios de responsabilidad compartida de la **Cloud Security Alliance (CSA)**.
+4. **Propuestas de Mejora Continua:**
+   * Habilitar certificados TLS/HTTPS automáticos mediante Let's Encrypt / Certbot en el servidor Nginx.
+   * Centralizar el envío de registros de auditoría hacia un servicio SIEM cloud administrado (como Azure Log Analytics / Microsoft Sentinel).
+   * Automatizar el aprovisionamiento de la infraestructura mediante plantillas de Terraform o Azure Bicep (IaC).

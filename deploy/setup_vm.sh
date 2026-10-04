@@ -101,7 +101,7 @@ echo "Servicio Web: http://$(curl -s ifconfig.me || hostname -I | awk '{print $1
 echo ""
 echo "Credenciales RBAC para Pruebas:"
 echo " - Administrador: admin / AdminSecurity2024!"
-echo " - Operador:      operador / OperatorSecurity2024!"
+echo " - Encargado:     encargado / EncargadoSecurity2024!"
 echo ""
 echo "Comandos útiles de diagnóstico:"
 echo " - Ver servicio: sudo systemctl status security-portal"
